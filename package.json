@@ -1,5 +1,5 @@
 {
-  "name": "de-code",
+  "name": "drawligent",
   "private": true,
   "scripts": {
     "build": "turbo run build",
