@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
+      "@/*": ["./*", "../../packages/ui/src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     },
     "plugins": [
