@@ -9,28 +9,20 @@ interface CanvasProps {
   shapes: Shape[];
   currentShape: Shape | null;
   selectedShapeId: string | null;
-  editingTextId: string | null;
   currentTool: string;
   onMouseDown: (point: Point) => void;
   onMouseMove: (point: Point) => void;
   onMouseUp: () => void;
-  onExportPNG: (canvas: HTMLCanvasElement) => void;
-  onUpdateText: (id: string, text: string) => void;
-  onFinishTextEditing: () => void;
 }
 
 export default function Canvas({
   shapes,
   currentShape,
   selectedShapeId,
-  editingTextId,
   currentTool,
   onMouseDown,
   onMouseMove,
-  onMouseUp,
-  onExportPNG,
-  onUpdateText,
-  onFinishTextEditing
+  onMouseUp
 }: CanvasProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -86,7 +78,6 @@ export default function Canvas({
       const shapeWithSelection = {
         ...shape,
         selected: shape.id === selectedShapeId,
-        isEditing: shape.id === editingTextId,
       };
       drawShape(ctx, shapeWithSelection);
     });
@@ -95,7 +86,7 @@ export default function Canvas({
     if (currentShape) {
       drawShape(ctx, currentShape);
     }
-  }, [shapes, currentShape, selectedShapeId, editingTextId]);
+  }, [shapes, currentShape, selectedShapeId]);
 
   return (
     <div className="flex-1 relative overflow-hidden">
