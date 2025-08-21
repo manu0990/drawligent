@@ -1,7 +1,6 @@
 "use client";
 
 import { Point, Shape, Tool, WhiteboardState } from "@/types/whiteboard-types";
-import { randomUUID } from "crypto";
 import { useCallback, useEffect, useState } from "react";
 
 const initialState: WhiteboardState = {
@@ -12,7 +11,6 @@ const initialState: WhiteboardState = {
   dragStart: null,
   currentShape: null,
   history: [[]],
-  historyIndex: 0,
 };
 
 export function useWhiteboard() {
@@ -23,14 +21,17 @@ export function useWhiteboard() {
 
   // load shapes from localStorage to canvas in mount
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const saved = localStorage.getItem('whiteboard-state');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        const loadedShapes = parsed.shapes || [];
         setState(prev => ({
           ...prev,
-          shapes: parsed.shapes || [],
-          history: [],
+          shapes: loadedShapes,
+          history: [loadedShapes], // Initialize history with loaded shapes
         }));
       } catch (err) {
         console.log("Failed to load data from localStorage", err);
@@ -42,19 +43,17 @@ export function useWhiteboard() {
   useEffect(() => {
     if (state.shapes.length > 0 || state.history.length > 1) {
       localStorage.setItem('whiteboard-state', JSON.stringify({
-        shape: state.shapes
+        shapes: state.shapes
       }))
     }
   }, [state.shapes, state.history]);
 
   const addToHistory = useCallback((shapes: Shape[]) => {
     setState(prev => {
-      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
-      newHistory.push([...shapes]);
+      const newHistory = [...prev.history, [...shapes]];
       return {
         ...prev,
         history: newHistory.slice(-50), // Keep last 50 states
-        historyIndex: newHistory.length - 1,
       };
     });
   }, []);
@@ -104,21 +103,23 @@ export function useWhiteboard() {
       const dx = point.x - state.dragStart.x;
       const dy = point.y - state.dragStart.y;
 
-      setState(prev => ({
-        ...prev,
-        shapes: prev.shapes.map(shape =>
-          shape.id === prev.selectedShapeId
-            ? {
-              ...shape,
-              x: shape.x + dx,
-              y: shape.y + dy,
-              endX: shape.endX ? shape.endX + dx : undefined,
-              endY: shape.endY ? shape.endY + dy : undefined,
-            }
-            : shape
-        ),
-        dragStart: point
-      }));
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        setState(prev => ({
+          ...prev,
+          shapes: prev.shapes.map(shape =>
+            shape.id === prev.selectedShapeId
+              ? {
+                ...shape,
+                x: shape.x + dx,
+                y: shape.y + dy,
+                endX: shape.endX ? shape.endX + dx : undefined,
+                endY: shape.endY ? shape.endY + dy : undefined,
+              }
+              : shape
+          ),
+          dragStart: point
+        }));
+      }
     } else if (state.isDrawing && state.currentShape && state.dragStart) {
       const updatedShape = updateShapeWithPoint(state.currentShape, state.dragStart, point);
       setState(prev => ({ ...prev, currentShape: updatedShape }));
@@ -144,28 +145,20 @@ export function useWhiteboard() {
   }, [state.isDrawing, state.currentShape, state.shapes, state.tool, state.selectedShapeId, addToHistory]);
 
   const undo = useCallback(() => {
-    if (state.historyIndex > 0) {
-      const newIndex = state.historyIndex - 1;
-      setState(prev => ({
-        ...prev,
-        shapes: [...(prev.history[newIndex] || [])],
-        historyIndex: newIndex,
-        selectedShapeId: null,
-      }));
+    if (state.history.length > 1) {
+      setState(prev => {
+        const newHistory = [...prev.history];
+        newHistory.pop(); // Remove the current state
+        const previousState = newHistory[newHistory.length - 1] || [];
+        return {
+          ...prev,
+          shapes: [...previousState],
+          history: newHistory,
+          selectedShapeId: null,
+        };
+      });
     }
-  }, [state.historyIndex]);
-
-  const redo = useCallback(() => {
-    if (state.historyIndex < state.history.length - 1) {
-      const newIndex = state.historyIndex + 1;
-      setState(prev => ({
-        ...prev,
-        shapes: [...(prev.history[newIndex] || [])],
-        historyIndex: newIndex,
-        selectedShapeId: null,
-      }));
-    }
-  }, [state.historyIndex, state.history.length]);
+  }, [state.history.length]);
 
   const clearCanvas = useCallback(() => {
     setState(prev => ({
@@ -191,7 +184,6 @@ export function useWhiteboard() {
     updateDrawing,
     endDrawing,
     undo,
-    redo,
     clearCanvas,
     strokeColor: currentStrokeColor,
     setStrokeColor,
@@ -264,7 +256,7 @@ function distanceFromPointToLine(point: Point, lineStart: Point, lineEnd: Point)
 
 function createShape(tool: Tool, point: Point, strokeColor = "#3B82F6", fillColor = "transparent"): Shape {
   const baseShape: Shape = {
-    id: randomUUID(),
+    id: Math.random().toString(36),
     type: 'rectangle',
     x: point.x,
     y: point.y,
