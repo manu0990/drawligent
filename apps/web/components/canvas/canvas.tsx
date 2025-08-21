@@ -1,4 +1,8 @@
-import { Point, Shape } from "@/types/whiteboard";
+"use client";
+
+import { clearCanvas, drawShape } from "@/lib/canvas-renderer";
+import { cn } from "@/lib/utils";
+import { Point, Shape } from "@/types/whiteboard-types";
 import { useCallback, useEffect, useRef } from "react";
 
 interface CanvasProps {
@@ -30,34 +34,41 @@ export default function Canvas({
 }: CanvasProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const tool = currentTool;
 
-  const getCanvasPoint = useCallback((e: MouseEvent | TouchEvent): Point => {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    canvas.width = parent.clientWidth;
+    canvas.height = parent.clientHeight;
+  }, []);
+
+  const getCanvasPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0]?.clientX || 0 : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0]?.clientY || 0 : e.clientY;
-
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    }
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   }, []);
 
-  const handlePointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const point = getCanvasPoint(e.nativeEvent);
+    const point = getCanvasPoint(e);
     onMouseDown(point);
   }, [getCanvasPoint, onMouseDown]);
 
-  const handlePointerMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const point = getCanvasPoint(e.nativeEvent);
+    const point = getCanvasPoint(e);
     onMouseMove(point);
   }, [getCanvasPoint, onMouseMove]);
 
-  const handlePointerUp = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     onMouseUp();
   }, [onMouseUp]);
@@ -65,24 +76,38 @@ export default function Canvas({
   // draw shapes
   useEffect(() => {
     const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if(!canvas || !context) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
 
-    // clearCanvas(canvas);
-  }, [])
+    clearCanvas(canvas);
 
+    // Draw all completed shapes
+    shapes.forEach(shape => {
+      const shapeWithSelection = {
+        ...shape,
+        selected: shape.id === selectedShapeId,
+        isEditing: shape.id === editingTextId,
+      };
+      drawShape(ctx, shapeWithSelection);
+    });
+
+    // Draw current shape being drawn
+    if (currentShape) {
+      drawShape(ctx, currentShape);
+    }
+  }, [shapes, currentShape, selectedShapeId, editingTextId]);
 
   return (
     <div className="flex-1 relative overflow-hidden">
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 touch-none"
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        onTouchStart={handlePointerDown}
-        onTouchMove={handlePointerMove}
-        onTouchEnd={handlePointerUp}
+        className={cn(
+          "absolute inset-0 touch-none",
+          `${tool == 'text' ? "cursor-text" : "cursor-crosshair"}`
+        )}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
       />
     </div>
   )

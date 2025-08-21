@@ -12,11 +12,11 @@ export interface Shape {
   y: number;
   width: number;
   height: number;
-  points?: Point[]; // For freedraw
-  endX?: number; // For arrow
-  endY?: number; // For arrow
-  text?: string; // For text
-  fontSize?: number; // For text
+  points?: Point[];   // For freedraw
+  endX?: number;      // For arrow
+  endY?: number;      // For arrow
+  text?: string;      // For text
+  fontSize?: number;  // For text
   selected?: boolean;
   strokeColor: string;
   fillColor: string;
