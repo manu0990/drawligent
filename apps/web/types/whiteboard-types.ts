@@ -31,5 +31,4 @@ export interface WhiteboardState {
   dragStart: Point | null;
   currentShape: Shape | null;
   history: Shape[][];
-  historyIndex: number;
 }

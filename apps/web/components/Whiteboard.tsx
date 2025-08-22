@@ -1,7 +1,8 @@
 "use client";
 
-import Canvas from "@/components/Canvas";
 import { useWhiteboard } from "@/hooks/useWhiteboard";
+import Canvas from "@/components/Canvas";
+import Toolbar from "@/components/Toolbar";
 
 export default function Whiteboard() {
   const { 
@@ -11,7 +12,6 @@ export default function Whiteboard() {
     updateDrawing,
     endDrawing,
     undo,
-    redo,
     clearCanvas,
     strokeColor,
     setStrokeColor,
@@ -21,6 +21,18 @@ export default function Whiteboard() {
 
   return (
     <div>
+      <Toolbar 
+        currentTool={state.tool}
+        onToolChange={setTool}
+        currentStrokeColor={strokeColor}
+        currentFillColor={fillColor}
+        onStrokeColorChange={setStrokeColor}
+        onFillColorChange={setFillColor}
+        onUndo={undo}
+        onClear={clearCanvas}
+        canUndo={state.history.length > 0}
+      />
+
       <Canvas
         shapes={state.shapes}
         currentShape={state.currentShape}

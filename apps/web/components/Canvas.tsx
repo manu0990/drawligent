@@ -1,7 +1,7 @@
 "use client";
 
 import { clearCanvas, drawShape } from "@/lib/canvas-renderer";
-import { cn } from "@/lib/utils";
+import { cn } from "@repo/ui/lib/utils";
 import { Point, Shape } from "@/types/whiteboard-types";
 import { useCallback, useEffect, useRef } from "react";
 
