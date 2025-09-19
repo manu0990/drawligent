@@ -1,8 +1,8 @@
-import { ForwardRefExoticComponent, RefAttributes } from "react";
+import { ForwardRefExoticComponent, ReactElement, RefAttributes } from "react";
 import { Tool } from "@/types/whiteboard-types";
-import { ArrowRight, Circle, Eraser, LucideProps, Minus, MousePointer, Pencil, Square, Trash, TypeIcon, Undo2 } from "lucide-react";
-import { ColorPicker } from "@/components/ColorPicker";
+import { Circle, Eraser, LucideProps, Minus, MousePointer, Pencil, Square, Trash, TypeIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
+import { Arrow } from "@/public/svgs/Arrow";
 
 interface ToolbarProps {
   currentTool: Tool;
@@ -18,34 +18,29 @@ interface ToolbarProps {
 
 type toolsetTypes = {
   id: Tool;
-  icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>;
+  icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>> | ((props: React.SVGProps<SVGSVGElement>) => ReactElement);
+  selector: string;
   label: string;
 }
 
 export default function Toolbar({
   currentTool,
   onToolChange,
-  currentStrokeColor,
-  currentFillColor,
-  onStrokeColorChange,
-  onFillColorChange,
-  onUndo,
   onClear,
-  canUndo,
 }: ToolbarProps) {
   const tools: toolsetTypes[] = [
-    { id: 'select', icon: MousePointer, label: 'Select' },
-    { id: 'rectangle', icon: Square, label: 'Rectangle' },
-    { id: 'ellipse', icon: Circle, label: 'Ellipse' },
-    { id: 'arrow', icon: ArrowRight, label: 'Arrow' },
-    { id: 'line', icon: Minus, label: 'Line' },
-    { id: 'freedraw', icon: Pencil, label: 'Draw' },
-    { id: 'text', icon: TypeIcon, label: 'Text' },
-    { id: 'delete', icon: Eraser, label: 'Delete' },
+    { id: 'select', icon: MousePointer, selector: '1', label: 'Selection — V or 1' },
+    { id: 'rectangle', icon: Square, selector: '2', label: 'Rectangle — R or 2' },
+    { id: 'ellipse', icon: Circle, selector: '3', label: 'Ellipse — O or 3' },
+    { id: 'arrow', icon: Arrow, selector: '4', label: 'Arrow — A or 4' },
+    { id: 'line', icon: Minus, selector: '5', label: 'Line — L or 5' },
+    { id: 'freedraw', icon: Pencil, selector: '6', label: 'Pen — P or 6' },
+    { id: 'text', icon: TypeIcon, selector: '7', label: 'Text — t or 7' },
+    { id: 'delete', icon: Eraser, selector: '8', label: 'Eraser — E or 8' },
   ];
 
   return (
-    <div className="fixed top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-1.5 py-0.5 bg-card/90 backdrop-blur-sm border border-border rounded-lg shadow-lg max-w-3xl sm:max-w-fit min-w-max overflow-x-auto scrollbar-hide">
+    <div className="fixed top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-1 py-1 bg-card/90 backdrop-blur-sm border border-border rounded-lg shadow-lg max-w-3xl sm:max-w-fit min-w-max overflow-x-auto scrollbar-hide">
       {/* Drawing Tools */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {tools.map((tool) => (
@@ -53,28 +48,19 @@ export default function Toolbar({
             key={tool.id}
             onClick={() => onToolChange(tool.id)}
             className={cn(
-              "h-6 w-6 sm:h-7 sm:w-8 p-0 rounded-lg flex-shrink-0 cursor-pointer transition-colors flex items-center justify-center hover:bg-primary/20",
-              currentTool === tool.id
-                ? "bg-primary/20 text-foreground/70"
-                : "text-foreground/70"
+              "h-6 w-6 sm:h-8 sm:w-8 p-0 rounded-lg flex-shrink-0 cursor-pointer transition-colors flex items-center justify-center text-foreground/70 ",
+              currentTool === tool.id ? "bg-primary/20" : "hover:bg-secondary ",
             )}
             title={tool.label}
           >
             <tool.icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 font-extralight" />
+            <span
+              className="h-0.5 w-0.5 text-[0.5rem] transform translate-y-0.5 opacity-70"
+            >
+              {tool.selector}
+            </span>
           </span>
         ))}
-      </div>
-
-      <div className="mx-1 h-6 w-px bg-border" />
-
-      {/* Color Picker */}
-      <div className="px-0.5 sm:px-1 flex-shrink-0">
-        <ColorPicker
-          currentColor={currentStrokeColor}
-          currentFillColor={currentFillColor}
-          onColorChange={onStrokeColorChange}
-          onFillColorChange={onFillColorChange}
-        />
       </div>
 
       <div className="mx-1 h-6 w-px bg-border" />
@@ -82,23 +68,16 @@ export default function Toolbar({
       {/* Action Buttons */}
       <div className="flex items-center gap-0.5 flex-shrink-0">
         <span
-          onClick={onUndo}
-          className={cn(
-            "h-6 w-6 sm:h-8 sm:w-8 p-0 rounded-lg flex-shrink-0 cursor-pointer transition-colors flex items-center justify-center",
-            canUndo
-              ? "hover:bg-primary/20 text-foreground/70"
-              : "opacity-50 cursor-not-allowed text-foreground/70"
-          )}
-          title="Undo"
-        >
-          <Undo2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </span>
-        <span
           onClick={onClear}
-          className="h-6 w-6 sm:h-8 sm:w-8 p-0 rounded-lg hover:bg-primary/20 text-foreground/70 flex-shrink-0 cursor-pointer transition-colors flex items-center justify-center"
-          title="Clear Canvas"
+          className="h-6 w-6 sm:h-8 sm:w-8 p-0 rounded-lg hover:bg-secondary text-foreground/70 flex-shrink-0 cursor-pointer transition-colors flex items-center justify-center"
+          title="Clear Canvas — C"
         >
           <Trash className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          <span
+            className="h-0.5 w-0.5 text-[0.5rem] transform translate-y-0.5 opacity-70 "
+          >
+            C
+          </span>
         </span>
       </div>
     </div>
