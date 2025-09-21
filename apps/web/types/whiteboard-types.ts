@@ -1,4 +1,4 @@
-export type Tool = 'select' | 'rectangle' | 'ellipse' | 'arrow' | 'line' | 'freedraw' | 'text' | 'delete';
+export type Tool = 'hand' | 'select' | 'rectangle' | 'diamond' | 'ellipse' | 'arrow' | 'line' | 'freedraw' | 'text' | 'image' | 'eraser';
 
 export interface Point {
   x: number;
@@ -7,7 +7,7 @@ export interface Point {
 
 export interface Shape {
   id: string;
-  type: 'rectangle' | 'ellipse' | 'arrow' | 'line' | 'freedraw' | 'text';
+  type: 'rectangle' | 'diamond' | 'ellipse' | 'arrow' | 'line' | 'freedraw' | 'text' | 'image';
   x: number;
   y: number;
   width: number;
@@ -17,6 +17,9 @@ export interface Shape {
   endY?: number;      // For arrow
   text?: string;      // For text
   fontSize?: number;  // For text
+  imageData?: string; // For image - base64 data URL
+  imageWidth?: number; // Original image width
+  imageHeight?: number; // Original image height
   selected?: boolean;
   strokeColor: string;
   fillColor: string;
@@ -31,4 +34,9 @@ export interface WhiteboardState {
   dragStart: Point | null;
   currentShape: Shape | null;
   history: Shape[][];
+  isEditingText: boolean;
+  editingTextId: string | null;
+  isLocked: boolean;
+  panOffset: Point;
+  isPanning: boolean;
 }

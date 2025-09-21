@@ -11,6 +11,11 @@ const initialState: WhiteboardState = {
   dragStart: null,
   currentShape: null,
   history: [[]],
+  isEditingText: false,
+  editingTextId: null,
+  isLocked: false,
+  panOffset: { x: 0, y: 0 },
+  isPanning: false,
 };
 
 export function useWhiteboard() {
@@ -62,12 +67,73 @@ export function useWhiteboard() {
     setState(prev => ({ ...prev, tool, selectedShapeId: null }));
   }, []);
 
+  const startTextEditing = useCallback((shapeId: string) => {
+    setState(prev => ({
+      ...prev,
+      isEditingText: true,
+      editingTextId: shapeId,
+      selectedShapeId: null,
+      tool: 'select', // Switch to select tool during text editing
+    }));
+  }, []);
+
+  const updateTextContent = useCallback((shapeId: string, newText: string) => {
+    const newShapes = state.shapes.map(shape => {
+      if (shape.id === shapeId) {
+        // Calculate new dimensions based on text content
+        const lines = newText.split('\n');
+        const fontSize = shape.fontSize || 24;
+        const lineHeight = fontSize * 1.2;
+
+        // Estimate width (roughly 0.6 * fontSize per character for Caveat font)
+        const maxLineLength = Math.max(...lines.map(line => line.length));
+        const estimatedWidth = Math.max(maxLineLength * fontSize * 0.6, 100);
+
+        // Calculate height based on number of lines
+        const estimatedHeight = Math.max(lines.length * lineHeight, fontSize + 4);
+
+        return {
+          ...shape,
+          text: newText,
+          width: estimatedWidth,
+          height: estimatedHeight
+        };
+      }
+      return shape;
+    });
+    setState(prev => ({ ...prev, shapes: newShapes }));
+    addToHistory(newShapes);
+  }, [state.shapes, addToHistory]);
+
+  const endTextEditing = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      isEditingText: false,
+      editingTextId: null,
+    }));
+  }, []);
+
   const startDrawing = useCallback((point: Point) => {
-    if (state.tool == 'select') {
+    if (state.tool === 'hand') {
+      setState(prev => ({
+        ...prev,
+        isPanning: true,
+        dragStart: point,
+      }));
+
+    } else if (state.tool == 'select') {
+      // Adjust point for pan offset when detecting shapes
+      const adjustedPoint = { x: point.x - state.panOffset.x, y: point.y - state.panOffset.y };
       const selectedShape = state.shapes
         .slice()
         .reverse()
-        .find(shape => isPointInShape(point, shape));
+        .find(shape => isPointInShape(adjustedPoint, shape));
+
+      // If a text shape is clicked, start text editing
+      if (selectedShape && selectedShape.type === 'text') {
+        startTextEditing(selectedShape.id);
+        return;
+      }
 
       setState(prev => ({
         ...prev,
@@ -75,11 +141,13 @@ export function useWhiteboard() {
         dragStart: selectedShape ? point : null,
       }));
 
-    } else if (state.tool === 'delete') {
+    } else if (state.tool === 'eraser') {
+      // Adjust point for pan offset when detecting shapes
+      const adjustedPoint = { x: point.x - state.panOffset.x, y: point.y - state.panOffset.y };
       const selectedShape = state.shapes
         .slice()
         .reverse()
-        .find(shape => isPointInShape(point, shape));
+        .find(shape => isPointInShape(adjustedPoint, shape));
 
       if (selectedShape) {
         const newShapes = state.shapes.filter(s => s.id !== selectedShape.id);
@@ -88,18 +156,38 @@ export function useWhiteboard() {
       }
 
     } else {
-      const newShape: Shape = createShape(state.tool, point, currentStrokeColor, currentFillColor);
+      // Adjust point for pan offset when creating new shapes
+      const adjustedPoint = { x: point.x - state.panOffset.x, y: point.y - state.panOffset.y };
+      const newShape: Shape = createShape(state.tool, adjustedPoint, currentStrokeColor, currentFillColor);
       setState(prev => ({
         ...prev,
         isDrawing: true,
         currentShape: newShape,
         dragStart: point,
       }));
+
+      // If creating a text shape, immediately start editing it when drawing ends
+      if (state.tool === 'text') {
+        // We'll handle this in endDrawing
+      }
     };
-  }, [state.tool, state.shapes, addToHistory, currentStrokeColor, currentFillColor])
+  }, [state.tool, state.shapes, state.panOffset.x, state.panOffset.y, addToHistory, currentStrokeColor, currentFillColor, startTextEditing])
 
   const updateDrawing = useCallback((point: Point) => {
-    if (state.tool === 'select' && state.selectedShapeId && state.dragStart) {
+    if (state.isPanning && state.dragStart) {
+      const dx = point.x - state.dragStart.x;
+      const dy = point.y - state.dragStart.y;
+
+      setState(prev => ({
+        ...prev,
+        panOffset: {
+          x: prev.panOffset.x + dx,
+          y: prev.panOffset.y + dy,
+        },
+        dragStart: point,
+      }));
+
+    } else if (state.tool === 'select' && state.selectedShapeId && state.dragStart) {
       const dx = point.x - state.dragStart.x;
       const dy = point.y - state.dragStart.y;
 
@@ -121,28 +209,49 @@ export function useWhiteboard() {
         }));
       }
     } else if (state.isDrawing && state.currentShape && state.dragStart) {
-      const updatedShape = updateShapeWithPoint(state.currentShape, state.dragStart, point);
+      // Adjust points for pan offset when updating shapes
+      const adjustedStart = { x: state.dragStart.x - state.panOffset.x, y: state.dragStart.y - state.panOffset.y };
+      const adjustedCurrent = { x: point.x - state.panOffset.x, y: point.y - state.panOffset.y };
+      const updatedShape = updateShapeWithPoint(state.currentShape, adjustedStart, adjustedCurrent);
       setState(prev => ({ ...prev, currentShape: updatedShape }));
     }
 
-  }, [state.tool, state.selectedShapeId, state.dragStart, state.currentShape, state.isDrawing])
+  }, [state.tool, state.selectedShapeId, state.dragStart, state.currentShape, state.isDrawing, state.isPanning, state.panOffset.x, state.panOffset.y])
 
   const endDrawing = useCallback(() => {
-    if (state.isDrawing && state.currentShape) {
+    if (state.isPanning) {
+      setState(prev => ({
+        ...prev,
+        isPanning: false,
+        dragStart: null,
+      }));
+
+    } else if (state.isDrawing && state.currentShape) {
       const newShapes = [...state.shapes, state.currentShape];
+      const isTextShape = state.currentShape.type === 'text';
+
       setState(prev => ({
         ...prev,
         shapes: newShapes,
         isDrawing: false,
         currentShape: null,
         dragStart: null,
+        // Switch to select tool after drawing only if tool is not locked
+        tool: prev.isLocked ? prev.tool : 'select',
       }));
       addToHistory(newShapes);
+
+      // If we just created a text shape, immediately start editing it
+      if (isTextShape) {
+        setTimeout(() => {
+          startTextEditing(state.currentShape!.id);
+        }, 0);
+      }
     } else if (state.tool === 'select' && state.selectedShapeId) {
       addToHistory(state.shapes);
       setState(prev => ({ ...prev, dragStart: null }));
     }
-  }, [state.isDrawing, state.currentShape, state.shapes, state.tool, state.selectedShapeId, addToHistory]);
+  }, [state.isDrawing, state.currentShape, state.shapes, state.tool, state.selectedShapeId, state.isPanning, addToHistory, startTextEditing]);
 
   const undo = useCallback(() => {
     if (state.history.length > 1) {
@@ -177,6 +286,59 @@ export function useWhiteboard() {
     setCurrentFillColor(color);
   }, []);
 
+  const toggleLock = useCallback(() => {
+    setState(prev => ({ ...prev, isLocked: !prev.isLocked }));
+  }, []);
+
+  const insertImage = useCallback((file: File, position: Point) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageData = e.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        // Calculate scaled dimensions to fit within reasonable bounds
+        const maxDimension = 300;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+
+        const imageShape: Shape = {
+          id: Math.random().toString(36),
+          type: 'image',
+          x: position.x - state.panOffset.x - width / 2, // Center on click position
+          y: position.y - state.panOffset.y - height / 2,
+          width,
+          height,
+          imageData,
+          imageWidth: img.width,
+          imageHeight: img.height,
+          strokeColor: currentStrokeColor,
+          fillColor: currentFillColor,
+          strokeWidth: 2,
+        };
+
+        setState(prev => {
+          const newShapes = [...prev.shapes, imageShape];
+          const newHistory = [...prev.history, newShapes];
+          return {
+            ...prev,
+            shapes: newShapes,
+            history: newHistory.slice(-50),
+            selectedShapeId: imageShape.id,
+            tool: 'select', // Switch back to select tool after inserting image
+          };
+        });
+      };
+      img.src = imageData;
+    };
+    reader.readAsDataURL(file);
+  }, [state.panOffset, currentStrokeColor, currentFillColor]);
+
   return {
     state,
     setTool,
@@ -188,70 +350,89 @@ export function useWhiteboard() {
     strokeColor: currentStrokeColor,
     setStrokeColor,
     fillColor: currentFillColor,
-    setFillColor
+    setFillColor,
+    startTextEditing,
+    endTextEditing,
+    updateTextContent,
+    toggleLock,
+    insertImage
   }
 }
 
-function isPointInShape(point: Point, shape: Shape) {
+function isPointInShape(mousePoint: Point, shape: Shape) {
+  const cursor = { cx: mousePoint.x, cy: mousePoint.y, r: 5 }; // center = mouse pointer
+
+  const circleOverlapsRect = (cx: number, cy: number, r: number, x: number, y: number, w: number, h: number) => {
+    const nearestX = Math.max(x, Math.min(cx, x + w));
+    const nearestY = Math.max(y, Math.min(cy, y + h));
+    const dx = cx - nearestX;
+    const dy = cy - nearestY;
+    return dx * dx + dy * dy <= r * r;
+  };
+
+  const distanceFromPointToLine = (point: Point, lineStart: Point, lineEnd: Point) => {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) param = dot / lenSq;
+
+    let xx, yy;
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dy = point.y - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const circleOverlapsLine = (cx: number, cy: number, r: number, start: Point, end: Point, strokeWidth: number) => {
+    const dist = distanceFromPointToLine({ x: cx, y: cy }, start, end);
+    return dist <= r + strokeWidth / 2;
+  };
+
   switch (shape.type) {
     case 'rectangle':
-      return point.x >= shape.x && point.x <= shape.x + shape.width &&
-        point.y >= shape.y && point.y <= shape.y + shape.height;
+    case 'diamond':
+    case 'ellipse':
+    case 'text':
+    case 'image':
+      return circleOverlapsRect(cursor.cx, cursor.cy, cursor.r, shape.x, shape.y, shape.width, shape.height);
 
-    case 'ellipse': {
-      const centerX = shape.x + shape.width / 2;
-      const centerY = shape.y + shape.height / 2;
-      const a = shape.width / 2;
-      const b = shape.height / 2;
-      return ((point.x - centerX) ** 2) / (a ** 2) + ((point.y - centerY) ** 2) / (b ** 2) <= 1;
-    }
-
+    case 'line':
     case 'arrow':
-    case 'line': {
-      // Simple line distance check
-      const dist = distanceFromPointToLine(point, { x: shape.x, y: shape.y }, { x: shape.endX || shape.x, y: shape.endY || shape.y });
-      return dist < 10;
-    }
+      return circleOverlapsLine(
+        cursor.cx,
+        cursor.cy,
+        cursor.r,
+        { x: shape.x, y: shape.y },
+        { x: shape.endX || shape.x, y: shape.endY || shape.y },
+        shape.strokeWidth || 2
+      );
 
     case 'freedraw':
-      return shape.points?.some(p => Math.abs(p.x - point.x) < 5 && Math.abs(p.y - point.y) < 5) || false;
-
-    case 'text':
-      return point.x >= shape.x && point.x <= shape.x + shape.width &&
-        point.y >= shape.y && point.y <= shape.y + shape.height;
+      return shape.points?.some((p, i, arr) => {
+        if (i === 0) return false;
+        const prev = arr[i - 1];
+        if (!prev) return false;
+        return circleOverlapsLine(cursor.cx, cursor.cy, cursor.r, prev, p, shape.strokeWidth || 2);
+      }) || false;
 
     default:
       return false;
   }
-}
-
-function distanceFromPointToLine(point: Point, lineStart: Point, lineEnd: Point): number {
-  const A = point.x - lineStart.x;
-  const B = point.y - lineStart.y;
-  const C = lineEnd.x - lineStart.x;
-  const D = lineEnd.y - lineStart.y;
-
-  const dot = A * C + B * D;
-  const lenSq = C * C + D * D;
-  let param = -1;
-  if (lenSq !== 0) param = dot / lenSq;
-
-  let xx, yy;
-
-  if (param < 0) {
-    xx = lineStart.x;
-    yy = lineStart.y;
-  } else if (param > 1) {
-    xx = lineEnd.x;
-    yy = lineEnd.y;
-  } else {
-    xx = lineStart.x + param * C;
-    yy = lineStart.y + param * D;
-  }
-
-  const dx = point.x - xx;
-  const dy = point.y - yy;
-  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function createShape(tool: Tool, point: Point, strokeColor = "#3B82F6", fillColor = "transparent"): Shape {
@@ -270,6 +451,8 @@ function createShape(tool: Tool, point: Point, strokeColor = "#3B82F6", fillColo
   switch (tool) {
     case 'rectangle':
       return { ...baseShape, type: 'rectangle' };
+    case 'diamond':
+      return { ...baseShape, type: 'diamond' };
     case 'ellipse':
       return { ...baseShape, type: 'ellipse' };
     case 'arrow':
@@ -279,7 +462,7 @@ function createShape(tool: Tool, point: Point, strokeColor = "#3B82F6", fillColo
     case 'freedraw':
       return { ...baseShape, type: 'freedraw', points: [point] };
     case 'text':
-      return { ...baseShape, type: 'text', text: '', fontSize: 16, width: 100, height: 20 };
+      return { ...baseShape, type: 'text', text: '', fontSize: 24, width: 100, height: 28 };
     default:
       return { ...baseShape, type: 'rectangle' };
   };
@@ -287,8 +470,9 @@ function createShape(tool: Tool, point: Point, strokeColor = "#3B82F6", fillColo
 
 function updateShapeWithPoint(shape: Shape, start: Point, current: Point): Shape {
   switch (shape.type) {
-    // rectangle  & ellipse both have the same bounding box so logic is same
+    // rectangle, diamond & ellipse both have the same bounding box so logic is same
     case 'rectangle':
+    case 'diamond':
     case 'ellipse':
       return {
         ...shape,

@@ -1,1 +1,6 @@
 @import "@repo/tailwind-config";
+
+/* Custom cursor for eraser tool */
+.cursor-eraser {
+  cursor: url("/svgs/CursorEraser.svg") 5 5, auto;
+}

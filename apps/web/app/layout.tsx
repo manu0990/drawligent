@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Handlee, EB_Garamond, Space_Mono } from "next/font/google";
+import { Caveat, EB_Garamond, Space_Mono } from "next/font/google";
 import "./globals.css";
 
-const patrickHand = Handlee({
+const caveat = Caveat({
   subsets: ["latin"],
   variable: "--font-sans",
-  weight: ["400"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const ebGaramond = EB_Garamond({
@@ -14,7 +14,6 @@ const ebGaramond = EB_Garamond({
   weight: ["400", "500", "600", "700", "800"],
   style: ["normal", "italic"],
 });
-
 
 const spaceMono = Space_Mono({
   subsets: ["latin"],
@@ -25,7 +24,8 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: "Drawligent",
-  description: "Drawligent is a modern whiteboard application that can also use AI for solving maths from the drawing or shapes you create on the white board.",
+  description:
+    "Drawligent is a modern whiteboard application that can also use AI for solving maths from the drawing or shapes you create on the white board.",
 };
 
 export default function RootLayout({
@@ -35,7 +35,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${ebGaramond.variable} ${patrickHand.variable} ${spaceMono.variable}`}>
+      <body
+        className={`${caveat.variable} ${ebGaramond.variable} ${spaceMono.variable}`}
+      >
         {children}
       </body>
     </html>

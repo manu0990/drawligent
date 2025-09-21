@@ -4,15 +4,21 @@ import { clearCanvas, drawShape } from "@/lib/canvas-renderer";
 import { cn } from "@repo/ui/lib/utils";
 import { Point, Shape } from "@/types/whiteboard-types";
 import { useCallback, useEffect, useRef } from "react";
+import TextEditor from "@/components/TextEditor";
 
 interface CanvasProps {
   shapes: Shape[];
   currentShape: Shape | null;
   selectedShapeId: string | null;
   currentTool: string;
+  isEditingText: boolean;
+  editingTextId: string | null;
+  panOffset: Point;
   onMouseDown: (point: Point) => void;
   onMouseMove: (point: Point) => void;
   onMouseUp: () => void;
+  onTextUpdate: (shapeId: string, text: string) => void;
+  onFinishTextEditing: () => void;
 }
 
 export default function Canvas({
@@ -20,9 +26,14 @@ export default function Canvas({
   currentShape,
   selectedShapeId,
   currentTool,
+  isEditingText,
+  editingTextId,
+  panOffset,
   onMouseDown,
   onMouseMove,
-  onMouseUp
+  onMouseUp,
+  onTextUpdate,
+  onFinishTextEditing
 }: CanvasProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,33 +84,57 @@ export default function Canvas({
 
     clearCanvas(canvas);
 
+    // Apply pan transformation
+    ctx.save();
+    ctx.translate(panOffset.x, panOffset.y);
+
     // Draw all completed shapes
     shapes.forEach(shape => {
       const shapeWithSelection = {
         ...shape,
         selected: shape.id === selectedShapeId,
       };
-      drawShape(ctx, shapeWithSelection);
+      // Pass isEditingText flag to skip rendering text being edited
+      const isEditingThisText = isEditingText && shape.id === editingTextId;
+      drawShape(ctx, shapeWithSelection, isEditingThisText);
     });
 
     // Draw current shape being drawn
     if (currentShape) {
       drawShape(ctx, currentShape);
     }
-  }, [shapes, currentShape, selectedShapeId]);
+
+    ctx.restore();
+  }, [shapes, currentShape, selectedShapeId, isEditingText, editingTextId, panOffset]);
+
+  // Get the text shape currently being edited
+  const editingTextShape = isEditingText && editingTextId 
+    ? shapes.find(shape => shape.id === editingTextId)
+    : null;
 
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div className="flex-1 relative overflow-hidden h-screen bg-background">
       <canvas
         ref={canvasRef}
         className={cn(
-          "absolute inset-0 touch-none",
-          `${tool == 'text' ? "cursor-text" : "cursor-crosshair"}`
+          "absolute inset-0 touch-none h-full w-full",
+          tool === 'hand' ? "cursor-grab" :
+          tool === 'text' ? "cursor-text" : 
+          tool === 'eraser' ? "cursor-eraser" : "cursor-crosshair"
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       />
+      
+      {/* Text Editor Overlay */}
+      {editingTextShape && (
+        <TextEditor
+          shape={editingTextShape}
+          onTextUpdate={(text) => onTextUpdate(editingTextShape.id, text)}
+          onFinishEditing={onFinishTextEditing}
+        />
+      )}
     </div>
   )
 }
